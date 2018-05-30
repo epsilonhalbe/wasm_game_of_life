@@ -33,17 +33,8 @@ impl<'a> Drop for Timer<'a> {
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Cell {
-    Dead = 0,
+    Dead  = 0,
     Alive = 1,
-}
-
-impl Cell {
-    fn toggle(&mut self) {
-        *self = match *self {
-            Cell::Dead => Cell::Alive,
-            Cell::Alive => Cell::Dead,
-        };
-    }
 }
 
 #[wasm_bindgen]
@@ -57,19 +48,15 @@ pub struct Universe {
 #[wasm_bindgen]
 impl Universe {
     pub fn new() -> Universe {
-        let width = 128;
-        let height = 128;
-
-        let cells = (0..width * height)
-            .map(|i| {
-                if i % 2 == 0 || i % 7 == 0 {
-                    Cell::Alive
-                } else {
-                    Cell::Dead
-                }
-            })
-            .collect();
-
+        let width  = 64;
+        let height = 64;
+        let cells  = (0..height * width).map(|i| {
+            match i {
+                1|2|66|130|194|257|258|2080|2081|2144|2145
+                    => Cell::Alive,
+                _   => Cell::Dead,
+            }
+        }).collect();
         Universe {
             width,
             height,
@@ -77,14 +64,8 @@ impl Universe {
         }
     }
 
-    pub fn width(&self) -> u32 {
-        self.width
-    }
-
-    pub fn height(&self) -> u32 {
-        self.height
-    }
-
+    pub fn width(&self)  -> u32 { self.width  }
+    pub fn height(&self) -> u32 { self.height }
     pub fn cells(&self) -> *const Cell {
         self.cells.as_ptr()
     }
@@ -92,108 +73,49 @@ impl Universe {
     pub fn tick(&mut self) {
         // let _timer = Timer::new("Universe::tick");
 
-        let mut next = {
-            // let _timer = Timer::new("allocate next cells");
-            self.cells.clone()
-        };
-
-        {
-            // let _timer = Timer::new("new generation");
-            for row in 0..self.height {
-                for col in 0..self.width {
-                    let idx = self.get_index(row, col);
-                    let cell = self.cells[idx];
-                    let live_neighbors = self.live_neighbor_count(row, col);
-
-                    let next_cell = match (cell, live_neighbors) {
-                        // Rule 1: Any live cell with fewer than two live neighbours
-                        // dies, as if caused by underpopulation.
-                        (Cell::Alive, x) if x < 2 => Cell::Dead,
-                        // Rule 2: Any live cell with two or three live neighbours
-                        // lives on to the next generation.
-                        (Cell::Alive, 2) | (Cell::Alive, 3) => Cell::Alive,
-                        // Rule 3: Any live cell with more than three live
-                        // neighbours dies, as if by overpopulation.
-                        (Cell::Alive, x) if x > 3 => Cell::Dead,
-                        // Rule 4: Any dead cell with exactly three live neighbours
-                        // becomes a live cell, as if by reproduction.
-                        (Cell::Dead, 3) => Cell::Alive,
-                        // All other cells remain in the same state.
-                        (otherwise, _) => otherwise,
+        for x in 0..self.width {
+            for y in 0..self.height {
+                let k = 3 * self.lvl1_neighbour_count(x, y)
+                      +     self.lvl2_neighbour_count(x, y);
+                next[self.get_index(x, y)] =
+                    match self.get(x,y) {
+                      Cell::Alive => if 6 <= k && k <= 10 { Cell::Alive } else { Cell::Dead },
+                      Cell::Dead  => if 7 <= k && k <=  9 { Cell::Alive } else { Cell::Dead },
                     };
-
-                    next[idx] = next_cell;
-                }
             }
         }
-
-        // let _timer = Timer::new("free old cells");
         self.cells = next;
-    }
-
-    pub fn toggle_cell(&mut self, row: u32, column: u32) {
-        let idx = self.get_index(row, column);
-        self.cells[idx].toggle();
     }
 }
 
 /// Private methods.
 impl Universe {
-    fn get_index(&self, row: u32, column: u32) -> usize {
-        (row * self.width + column) as usize
+    fn get_index(&self, x: u32, y: u32) -> usize {
+        (x + y * self.width) as usize
     }
 
-    fn live_neighbor_count(&self, row: u32, column: u32) -> u8 {
-        let mut count = 0;
+    fn get(&self, x: u32, y: u32) -> Cell {
+        self.cells[self.get_index(x,y)]
+    }
 
-        let north = if row == 0 {
-            self.height - 1
-        } else {
-            row - 1
-        };
+    fn lvl1_neighbour_count(&self, x: u32, y: u32) -> u8 {
+        [    (x,y+1),(x+1,y+1)
+        ,(x-1,y)/*(x,y)*/,(x+1,y)
+        ,    (x,y-1),(x+1,y-1)
+        ].iter().map(|(x_,y_)| {
+            self.get(x_ % self.width, y_ % self.height) as u8
+        }).sum()
+    }
 
-        let south = if row == self.height - 1 {
-            0
-        } else {
-            row + 1
-        };
-
-        let west = if column == 0 {
-            self.width - 1
-        } else {
-            column - 1
-        };
-
-        let east = if column == self.width - 1 {
-            0
-        } else {
-            column + 1
-        };
-
-        let nw = self.get_index(north, west);
-        count += self.cells[nw] as u8;
-
-        let n = self.get_index(north, column);
-        count += self.cells[n] as u8;
-
-        let ne = self.get_index(north, east);
-        count += self.cells[ne] as u8;
-
-        let w = self.get_index(row, west);
-        count += self.cells[w] as u8;
-
-        let e = self.get_index(row, east);
-        count += self.cells[e] as u8;
-
-        let sw = self.get_index(south, west);
-        count += self.cells[sw] as u8;
-
-        let s = self.get_index(south, column);
-        count += self.cells[s] as u8;
-
-        let se = self.get_index(south, east);
-        count += self.cells[se] as u8;
-
-        count
+    fn lvl2_neighbour_count(&self, x: u32, y: u32) -> u8 {
+        [          (x,y+2),
+         (x-1,y+1),        (x+2,y+1),
+                  /*(x,y)*/
+         (x-1,y-1),        (x+2,y-1),
+                   (x,y-2)
+        ].iter()
+         .map(|(x_,y_)| {
+            self.get(x_ % self.width, y_ % self.height) as u8
+        }).sum()
     }
 }
