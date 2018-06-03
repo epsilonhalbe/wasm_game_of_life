@@ -92,8 +92,8 @@ impl Universe {
 /// Private methods.
 impl Universe {
     fn get_index(&self, x: u32, y: u32) -> usize {
-        let x_ = if x < self.width  { x } else { x % self.width  };
-        let y_ = if y < self.height { y } else { y % self.height };
+        let x_ = if x < self.width  { x } else { x - self.width  };
+        let y_ = if y < self.height { y } else { y - self.height };
         (x_ + y_ * self.width) as usize
     }
 
@@ -102,20 +102,24 @@ impl Universe {
     }
 
     fn lvl1_neighbour_count(&self, x: u32, y: u32) -> u8 {
+        let xx = x+self.width;
+        let yy = y+self.height;
         [    (x,y+1),(x+1,y+1)
-        ,(x-1,y)/*(x,y)*/,(x+1,y)
-        ,    (x,y-1),(x+1,y-1)
+        ,(xx-1,y)/*(x,y)*/,(x+1,y)
+        ,    (x,yy-1),(x+1,yy-1)
         ].iter().map(|(x_,y_)| {
-            self.get(*x_ , *y_) as u8
+            self.get(*x_, *y_) as u8
         }).sum()
     }
 
     fn lvl2_neighbour_count(&self, x: u32, y: u32) -> u8 {
+        let xx = x+self.width;
+        let yy = y+self.height;
         [          (x,y+2),
-         (x-1,y+1),        (x+2,y+1),
+         (xx-1,y+1),        (x+2,y+1),
                   /*(x,y)*/
-         (x-1,y-1),        (x+2,y-1),
-                   (x,y-2)
+         (xx-1,yy-1),        (x+2,yy-1),
+                   (x,yy-2)
         ].iter()
          .map(|(x_,y_)| {
             self.get(*x_, *y_) as u8
