@@ -91,7 +91,9 @@ impl Universe {
 /// Private methods.
 impl Universe {
     fn get_index(&self, x: u32, y: u32) -> usize {
-        (x + y * self.width) as usize
+        let x_ = if x < self.width  { x } else { x % self.width  };
+        let y_ = if y < self.height { y } else { y % self.height };
+        (x_ + y_ * self.width) as usize
     }
 
     fn get(&self, x: u32, y: u32) -> Cell {
@@ -103,7 +105,7 @@ impl Universe {
         ,(x-1,y)/*(x,y)*/,(x+1,y)
         ,    (x,y-1),(x+1,y-1)
         ].iter().map(|(x_,y_)| {
-            self.get(x_ % self.width, y_ % self.height) as u8
+            self.get(*x_ , *y_) as u8
         }).sum()
     }
 
@@ -115,7 +117,7 @@ impl Universe {
                    (x,y-2)
         ].iter()
          .map(|(x_,y_)| {
-            self.get(x_ % self.width, y_ % self.height) as u8
+            self.get(*x_, *y_) as u8
         }).sum()
     }
 }
