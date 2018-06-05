@@ -1,7 +1,7 @@
 /* tslint:disable */
 export class Universe {
 free(): void;
-static  new(): Universe;
+static  new(arg0: number, arg1: number): Universe;
 
  width(): number;
 
@@ -10,5 +10,7 @@ static  new(): Universe;
  cells(): number;
 
  tick(): void;
+
+ toggle_cell(arg0: number, arg1: number): void;
 
 }

@@ -37,9 +37,18 @@ pub enum Cell {
     Alive = 1,
 }
 
+impl Cell {
+    fn toggle(&mut self) {
+        *self = match *self {
+            Cell::Dead => Cell::Alive,
+            Cell::Alive => Cell::Dead,
+        };
+    }
+}
+
 #[wasm_bindgen]
 pub struct Universe {
-    width: u32,
+    width:  u32,
     height: u32,
     cells: Vec<Cell>,
 }
@@ -47,15 +56,12 @@ pub struct Universe {
 /// Public methods, exported to JavaScript.
 #[wasm_bindgen]
 impl Universe {
-    pub fn new() -> Universe {
-        let width  = 64;
-        let height = 64;
+    pub fn new(w:u32, h:u32) -> Universe {
+        let width  = w;
+        let height = h;
         let cells  = (0..height * width).map(|i| {
-            match i {
-                1|2|66|130|194|257|258|2080|2081|2144|2145
-                    => Cell::Alive,
-                _   => Cell::Dead,
-            }
+            if i < width || i % width == 0 || i % width == width-1 || width * (height-1) <= i
+                { Cell::Alive} else {Cell::Dead}
         }).collect();
         Universe {
             width,
@@ -72,7 +78,7 @@ impl Universe {
 
     pub fn tick(&mut self) {
         // let _timer = Timer::new("Universe::tick");
-        let mut next = self.cells.clone(); 
+        let mut next = self.cells.clone();
 
         for x in 0..self.width {
             for y in 0..self.height {
@@ -90,11 +96,17 @@ impl Universe {
 }
 
 /// Private methods.
+#[wasm_bindgen]
 impl Universe {
     fn get_index(&self, x: u32, y: u32) -> usize {
         let x_ = if x < self.width  { x } else { x - self.width  };
         let y_ = if y < self.height { y } else { y - self.height };
         (x_ + y_ * self.width) as usize
+    }
+
+    pub fn toggle_cell(&mut self, x: u32, y: u32) {
+        let idx = self.get_index(x, y);
+        self.cells[idx].toggle();
     }
 
     fn get(&self, x: u32, y: u32) -> Cell {
