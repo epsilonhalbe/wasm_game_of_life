@@ -1,11 +1,10 @@
 import { Universe } from "./wasm_game_of_life";
 import { memory } from "./wasm_game_of_life_bg";
 
-const CELL_SIZE = 5;
-const GRID_COLOR = "#CCCCCC";
+const CELL_SIZE = 50;
 
+//const GRID_COLOR = "#FFAA00";
 const COLOR_DEAD = "#111111";
-const COLOR_ALIVE = "#FFAA00";
 // These must match `Cell::Alive` and `Cell::Dead` in `src/lib.rs`.
 const DEAD  = 0;
 const ALIVE = 1;
@@ -17,7 +16,7 @@ const w = Math.ceil(w_/(CELL_SIZE * 1.5 * 1.1) + 1)/2;
 const h = Math.ceil(h_/CELL_SIZE + 0.8660254037844387 * 1.1);
 
 const universe = Universe.new(w,h);
-const width = universe.width();
+const width  = universe.width();
 const height = universe.height();
 
 // Initialize the canvas with room for all of our cells and a 1px border
@@ -69,14 +68,18 @@ max of last 100 = ${Math.round(max)}
 };
 
 var slow = -1;
+const fadeRate = 80;
+
 const renderLoop = () => {
   fps.render();
-  if (! (++slow % 10)) {
-    drawCells();
+  if (fadeRate <= ++slow) {
     //for (let i = 0; i < 1; i++) {
+      slow = 0;
       universe.tick();
     //}
   }
+  drawCells(slow);
+  //drawGrid()
   animationId = requestAnimationFrame(renderLoop);
 };
 
@@ -85,18 +88,45 @@ const getIndex = (x, y) => {
 };
 
 const drawHexagon = (x,y) => {
+    const x0 = 3.3*(x+(y%2)/2)*CELL_SIZE;
+    const y0 = y*CELL_SIZE;
     ctx.beginPath();
-    ctx.moveTo(x+CELL_SIZE,y);
-    // pre-calculated hexagon angles -for performance
-    ctx.lineTo(x+CELL_SIZE*0.5,y+CELL_SIZE*0.8660254037844386);
-    ctx.lineTo(x-CELL_SIZE*0.5,y+CELL_SIZE*0.8660254037844387);
-    ctx.lineTo(x-CELL_SIZE,y);
-    ctx.lineTo(x-CELL_SIZE*0.5,y-CELL_SIZE*0.8660254037844384);
-    ctx.lineTo(x+CELL_SIZE*0.5,y-CELL_SIZE*0.8660254037844386);
-    ctx.lineTo(x+CELL_SIZE,y);
+    ctx.moveTo(x0+CELL_SIZE,y0);
+    const y1 = CELL_SIZE*0.8660254037844386;
+    const x1 = CELL_SIZE*0.5;
+    const x2 = CELL_SIZE;
+    // pre-calculated hex_agon angles -for performance
+    ctx.lineTo(x0+x1,y0+y1);
+    ctx.lineTo(x0-x1,y0+y1);
+    ctx.lineTo(x0-x2,y0);
+    ctx.lineTo(x0-x1,y0-y1);
+    ctx.lineTo(x0+x1,y0-y1);
+    ctx.lineTo(x0+x2,y0);
     ctx.closePath();
     ctx.fill();
+    //var style = ctx.fillStyle;
+    //ctx.fillStyle = "white";
+    //ctx.font = "12px Arial";
+    //ctx.fillText("("+x+","+y+")", x0,y0);
+    //ctx.fillStyle = style;
 }
+
+//const drawGrid = () => {
+    //ctx.beginPath();
+    //ctx.strokeStyle = GRID_COLOR;
+    //// Vertical lines.
+    //for (let i = 0; i <= width; i++) {
+        //ctx.moveTo(i * (3.3*CELL_SIZE/2), 0);
+        //ctx.lineTo(i * (3.3*CELL_SIZE/2), canvas.height);
+    //}
+    //// Horizontal lines.
+    //for (let j = 0; j <= height; j++) {
+        //ctx.moveTo(0           , j * CELL_SIZE);
+        //ctx.lineTo(canvas.width, j * CELL_SIZE);
+        //ctx.stroke();
+    //}
+  //ctx.stroke();
+//};
 
 const drawCell = (what) => {
   for (var y = 0; y < height; y++) {
@@ -105,12 +135,12 @@ const drawCell = (what) => {
       if (cells[idx] !== what) {
         continue;
       }
-      drawHexagon(3.3*(x+(y%2)/2)*CELL_SIZE,y*CELL_SIZE);
+      drawHexagon(x,y);
     }
   }
 };
 
-const drawCells = () => {
+const drawCells = (n) => {
   const cellsPtr = universe.cells();
   const cells = new Uint8Array(memory.buffer, cellsPtr, width * height);
 
@@ -118,19 +148,30 @@ const drawCells = () => {
   // avoid doing it for every cell. Instead, we do two passes: one for live
   // cells, and one for dead cells.
 
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
   // Dead cells.
   ctx.fillStyle = COLOR_DEAD;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (var y = 0; y < height; y++) {
+    for (var x = 0; x < width; x++) {
+      const idx = getIndex(x,y);
+      if (cells[idx] !== DEAD) {
+        continue;
+      }
+      drawHexagon(x,y);
+    }
+  }
 
   // Live cells.
-  ctx.fillStyle = COLOR_ALIVE;
+  const t_ = (n*n)/(fadeRate*fadeRate);
+  const t  = boundedBy(0, n <= fadeRate/2 ? 4*t_ : 1-t_, 0.5);
+  ctx.fillStyle = rgb(17+t*(226-17),17+t*(0-17),17+t*(116-17));
   for (var y = 0; y < height; y++) {
     for (var x = 0; x < width; x++) {
       const idx = getIndex(x,y);
       if (cells[idx] !== ALIVE) {
         continue;
       }
-      drawHexagon(3.3*(x+(y%2)/2)*CELL_SIZE,y*CELL_SIZE);
+      drawHexagon(x,y);
     }
   }
 };
@@ -156,21 +197,47 @@ playPauseButton.addEventListener("click", event => {
   if (isPaused()) { play(); } else { pause(); }
 });
 
+const boundedBy = (a,x,b) => Math.min(Math.max(a,x),b);
+const rgb = (r,g,b) => "rgb("+r+","+g+","+b+")";
+
 canvas.addEventListener("click", event => {
   const boundingRect = canvas.getBoundingClientRect();
 
-  const scaleX = canvas.width  / boundingRect.width;
-  const scaleY = canvas.height / boundingRect.height;
+  const mouseX = event.clientX - boundingRect.left;
+  const mouseY = event.clientY - boundingRect.top ;
+  //  drawHexagon(3.3*(x+(y%2)/2)*CELL_SIZE
+  //             ,y*CELL_SIZE);
+  var x  = (mouseX / CELL_SIZE / 1.65);
+  var y  = (mouseY / CELL_SIZE);
+  const shape = "("+Math.floor(x)%2
+              + ","+Math.floor(y)%2
+              + ","+(0 + (1/3 + (1-(y%1))/3.15 < (x % 1)))
+              + ")";
+  //console.log("shape = ", shape);
+  var x  = Math.floor(mouseX / CELL_SIZE / 3.3);
+  var y  = 2*Math.floor(mouseY / CELL_SIZE/2)+1;
+  switch (shape) {
+    case "(0,0,0)":
+          y--;
+          break;
+    case "(1,0,1)":
+          x++;
+          y--;
+          break;
+    case "(0,1,0)":
+          y++;
+          break;
+    case "(1,1,1)":
+          x++;
+          y++;
+          break;
+  }
 
-  const canvasLeft = (event.clientX - boundingRect.left) * scaleX;
-  const canvasTop  = (event.clientY - boundingRect.top)  * scaleY;
-
-  const y = Math.min(Math.floor(canvasTop  / (CELL_SIZE + 1)), height - 1);
-  const x = Math.min(Math.floor(canvasLeft / (CELL_SIZE + 1)), width  - 1);
-
+  //console.log("x = ",x,"y= ",y);
   universe.toggle_cell(x, y);
 
-  drawCells();
+  drawCells(slow);
 });
 
 play();
+pause();
